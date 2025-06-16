@@ -1,0 +1,60 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import chirp, correlate
+
+# Constants
+c = 3e8  # Speed of light (m/s)
+fs = 1e6  # Sampling frequency (1 MHz)
+pulse_duration = 1e-4  # 100 microseconds
+t = np.linspace(0, pulse_duration, int(fs * pulse_duration), endpoint=False)
+
+# Create chirp signal (radar pulse)
+f0 = 0      # Start frequency
+f1 = 100e3  # End frequency (100 kHz)
+tx_signal = chirp(t, f0=f0, f1=f1, t1=pulse_duration, method='linear')
+
+# Simulate object at 1500 meters
+object_distance = 1500  # meters
+delay_time = (2 * object_distance) / c  # Round trip time
+delay_samples = int(delay_time * fs)
+
+# Create delayed echo with attenuation
+rx_signal = np.zeros_like(tx_signal)
+if delay_samples < len(rx_signal):
+    rx_signal[delay_samples:] = 0.5 * tx_signal[:len(tx_signal) - delay_samples]
+
+# Received signal is original + echo (simplified)
+received = tx_signal + rx_signal
+
+# Cross-correlation to find time delay
+correlation = correlate(received, tx_signal, mode='full')
+lags = np.arange(-len(tx_signal)+1, len(tx_signal))
+max_corr_index = np.argmax(correlation)
+time_delay_estimated = lags[max_corr_index] / fs
+distance_estimated = (time_delay_estimated * c) / 2
+
+# Output
+print(f"Actual object distance: {object_distance} meters")
+print(f"Estimated object distance: {distance_estimated:.2f} meters")
+
+# Plotting
+plt.figure(figsize=(12, 6))
+plt.subplot(3, 1, 1)
+plt.plot(t * 1e6, tx_signal)
+plt.title("Transmitted Radar Chirp")
+plt.xlabel("Time (μs)")
+plt.ylabel("Amplitude")
+
+plt.subplot(3, 1, 2)
+plt.plot(t * 1e6, received)
+plt.title("Received Signal (Echo + Original)")
+plt.xlabel("Time (μs)")
+plt.ylabel("Amplitude")
+
+plt.subplot(3, 1, 3)
+plt.plot(lags / fs * 1e6, correlation)
+plt.title("Cross-Correlation to Detect Echo")
+plt.xlabel("Lag Time (μs)")
+plt.ylabel("Correlation Amplitude")
+plt.tight_layout()
+plt.show()
